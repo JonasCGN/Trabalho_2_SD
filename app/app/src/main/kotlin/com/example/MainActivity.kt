@@ -155,10 +155,10 @@ class MainActivity : AppCompatActivity() {
         }
         
         // Status
-        // textViewStatus = TextView(this).apply {
-        //     text = "Pronto para tirar foto\n\nUsando: Intent nativa da câmera + Kotlin Coroutines\nFormato: JPEG 80% qualidade, máx. 1280px\nTimeout: 5 segundos\nAPIs modernas: ActivityResultLauncher + MediaStore"
-        //     textSize = 14f
-        // }
+        textViewStatus = TextView(this).apply {
+            text = "Pronto para tirar foto\n\nUsando: Intent nativa da câmera + Kotlin Coroutines\nFormato: JPEG 80% qualidade, máx. 1280px\nTimeout: 5 segundos\nAPIs modernas: ActivityResultLauncher + MediaStore"
+            textSize = 14f
+        }
         
         // Adicionar views ao layout
         layout.addView(labelIP)
@@ -169,7 +169,7 @@ class MainActivity : AppCompatActivity() {
         layout.addView(imageViewPreview)
         layout.addView(buttonLayout)
         layout.addView(buttonSendPhoto)
-        // layout.addView(textViewStatus)
+        layout.addView(textViewStatus)
         
         setContentView(layout)
     }
@@ -177,23 +177,32 @@ class MainActivity : AppCompatActivity() {
     private fun initializeActivityLaunchers() {
         // Launcher moderno para tirar foto
         takePictureLauncher = registerForActivityResult(ActivityResultContracts.TakePicture()) { success ->
-            if (success && currentPhotoPath.isNotEmpty()) {
-                val bitmap = resizeAndCompressBitmap(currentPhotoPath)
-                if (bitmap != null) {
-                    currentPhotoBitmap = bitmap
-                    imageViewPreview.setImageBitmap(bitmap)
-                    
-                    // Salvar versão otimizada na galeria usando API moderna
-                    saveImageToGalleryModern(bitmap)
-                    
-                    // Habilitar botões
-                    buttonSendPhoto.isEnabled = true
-                    buttonViewGallery.isEnabled = true
-                    
-                    textViewStatus.text = "Foto capturada! Pronta para enviar.\nResolução: ${bitmap.width}x${bitmap.height}px\nTimeout: 5 segundos\nFormato: JPEG 80% qualidade, máx. 1280px\nAPIs modernas: ActivityResultLauncher + MediaStore"
+            try {
+                if (success && currentPhotoPath.isNotEmpty()) {
+                    val bitmap = resizeAndCompressBitmap(currentPhotoPath)
+                    if (bitmap != null) {
+                        currentPhotoBitmap = bitmap
+                        imageViewPreview.setImageBitmap(bitmap)
+                        
+                        // Salvar versão otimizada na galeria usando API moderna
+                        saveImageToGalleryModern(bitmap)
+                        
+                        // Habilitar botões
+                        buttonSendPhoto.isEnabled = true
+                        buttonViewGallery.isEnabled = true
+                        
+                        textViewStatus.text = "Foto capturada! Pronta para enviar.\nResolução: ${bitmap.width}x${bitmap.height}px\nTimeout: 5 segundos\nFormato: JPEG 80% qualidade, máx. 1280px\nAPIs modernas: ActivityResultLauncher + MediaStore"
+                    } else {
+                        Toast.makeText(this, "Erro ao processar foto", Toast.LENGTH_SHORT).show()
+                        textViewStatus.text = "Erro ao processar foto. Tente novamente."
+                    }
                 } else {
-                    Toast.makeText(this, "Erro ao processar foto", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "Foto não foi capturada", Toast.LENGTH_SHORT).show()
+                    textViewStatus.text = "Foto não foi capturada. Tente novamente."
                 }
+            } catch (e: Exception) {
+                Toast.makeText(this, "Erro: ${e.message}", Toast.LENGTH_LONG).show()
+                textViewStatus.text = "Erro ao processar foto: ${e.message}"
             }
         }
         
@@ -243,51 +252,72 @@ class MainActivity : AppCompatActivity() {
             )
             currentPhotoUri = photoURI
             
+            textViewStatus.text = "Abrindo câmera..."
+            
             // Usar launcher moderno em vez de startActivityForResult
             takePictureLauncher.launch(photoURI)
-        } catch (ex: IOException) {
-            Toast.makeText(this, "Erro ao criar arquivo de imagem", Toast.LENGTH_SHORT).show()
+        } catch (ex: Exception) {
+            Toast.makeText(this, "Erro ao criar arquivo de imagem: ${ex.message}", Toast.LENGTH_LONG).show()
+            textViewStatus.text = "Erro ao abrir câmera: ${ex.message}"
         }
     }
     
     private fun resizeAndCompressBitmap(imagePath: String): Bitmap? {
-        // Primeiro, obter dimensões da imagem
-        val options = BitmapFactory.Options().apply {
-            inJustDecodeBounds = true
-        }
-        BitmapFactory.decodeFile(imagePath, options)
-        
-        // Calcular fator de escala para máximo de 1280px
-        val maxSize = 1280
-        var scaleFactor = 1
-        if (options.outHeight > maxSize || options.outWidth > maxSize) {
-            val halfHeight = options.outHeight / 2
-            val halfWidth = options.outWidth / 2
-            
-            while (halfHeight / scaleFactor >= maxSize && halfWidth / scaleFactor >= maxSize) {
-                scaleFactor *= 2
+        return try {
+            // Verificar se o arquivo existe
+            val file = java.io.File(imagePath)
+            if (!file.exists()) {
+                Toast.makeText(this, "Arquivo de imagem não encontrado", Toast.LENGTH_SHORT).show()
+                return null
             }
-        }
-        
-        // Decodificar com fator de escala
-        val decodeOptions = BitmapFactory.Options().apply {
-            inSampleSize = scaleFactor
-        }
-        
-        val bitmap = BitmapFactory.decodeFile(imagePath, decodeOptions)
-        
-        // Se ainda for maior que 1280px, redimensionar mais
-        return if (bitmap != null && (bitmap.width > maxSize || bitmap.height > maxSize)) {
-            val aspectRatio = bitmap.width.toFloat() / bitmap.height.toFloat()
-            val (newWidth, newHeight) = if (bitmap.width > bitmap.height) {
-                maxSize to (maxSize / aspectRatio).toInt()
+            
+            // Primeiro, obter dimensões da imagem
+            val options = BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
+            }
+            BitmapFactory.decodeFile(imagePath, options)
+            
+            // Verificar se a imagem foi decodificada corretamente
+            if (options.outWidth <= 0 || options.outHeight <= 0) {
+                Toast.makeText(this, "Imagem corrompida ou inválida", Toast.LENGTH_SHORT).show()
+                return null
+            }
+            
+            // Calcular fator de escala para máximo de 1280px
+            val maxSize = 1280
+            var scaleFactor = 1
+            if (options.outHeight > maxSize || options.outWidth > maxSize) {
+                val halfHeight = options.outHeight / 2
+                val halfWidth = options.outWidth / 2
+                
+                while (halfHeight / scaleFactor >= maxSize && halfWidth / scaleFactor >= maxSize) {
+                    scaleFactor *= 2
+                }
+            }
+            
+            // Decodificar com fator de escala
+            val decodeOptions = BitmapFactory.Options().apply {
+                inSampleSize = scaleFactor
+            }
+            
+            val bitmap = BitmapFactory.decodeFile(imagePath, decodeOptions)
+            
+            // Se ainda for maior que 1280px, redimensionar mais
+            if (bitmap != null && (bitmap.width > maxSize || bitmap.height > maxSize)) {
+                val aspectRatio = bitmap.width.toFloat() / bitmap.height.toFloat()
+                val (newWidth, newHeight) = if (bitmap.width > bitmap.height) {
+                    maxSize to (maxSize / aspectRatio).toInt()
+                } else {
+                    (maxSize * aspectRatio).toInt() to maxSize
+                }
+                
+                Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
             } else {
-                (maxSize * aspectRatio).toInt() to maxSize
+                bitmap
             }
-            
-            Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
-        } else {
-            bitmap
+        } catch (e: Exception) {
+            Toast.makeText(this, "Erro ao processar imagem: ${e.message}", Toast.LENGTH_LONG).show()
+            null
         }
     }
     

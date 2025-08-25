@@ -5,5 +5,17 @@
  * For more detailed information on multi-project builds, please refer to https://docs.gradle.org/8.14.2/userguide/multi_project_builds.html in the Gradle documentation.
  */
 
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+    plugins {
+        id("com.android.application") version "8.1.2"
+        id("org.jetbrains.kotlin.android") version "1.9.0"
+    }
+}
+
 include(":app")
 rootProject.name = "app"
