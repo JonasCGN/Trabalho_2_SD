@@ -1,2 +1,2 @@
 gerar_apk:
-	./gradlew assembleDebug
+	./gradlew :app:assembleDebug
