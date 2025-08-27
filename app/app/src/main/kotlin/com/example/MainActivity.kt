@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
+import androidx.exifinterface.media.ExifInterface
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -96,9 +97,14 @@ class MainActivity : AppCompatActivity() {
         }
         
         imageViewPreview = ImageView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(400, 300)
-            scaleType = ImageView.ScaleType.CENTER_CROP
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, // Largura total disponível
+                LinearLayout.LayoutParams.WRAP_CONTENT  // Altura se adapta à imagem
+            )
+            scaleType = ImageView.ScaleType.FIT_CENTER // Manter proporções, centralizar
             setBackgroundColor(0xFFE0E0E0.toInt())
+            adjustViewBounds = true // IMPORTANTE: se adaptar aos limites da imagem
+            maxHeight = 400 // Altura máxima para não ocupar toda a tela
         }
         
         // Botões em linha horizontal
@@ -156,7 +162,7 @@ class MainActivity : AppCompatActivity() {
         
         // Status
         textViewStatus = TextView(this).apply {
-            text = "Pronto para tirar foto\n\nUsando: Intent nativa da câmera + Kotlin Coroutines\nFormato: JPEG 80% qualidade, máx. 1280px\nTimeout: 5 segundos\nAPIs modernas: ActivityResultLauncher + MediaStore"
+            text = "Pronto para tirar foto"
             textSize = 14f
         }
         
@@ -182,6 +188,10 @@ class MainActivity : AppCompatActivity() {
                     val bitmap = resizeAndCompressBitmap(currentPhotoPath)
                     if (bitmap != null) {
                         currentPhotoBitmap = bitmap
+                        
+                        // Configurar ImageView para não rotacionar automaticamente
+                        imageViewPreview.scaleType = ImageView.ScaleType.FIT_CENTER
+                        imageViewPreview.adjustViewBounds = true
                         imageViewPreview.setImageBitmap(bitmap)
                         
                         // Salvar versão otimizada na galeria usando API moderna
@@ -191,7 +201,7 @@ class MainActivity : AppCompatActivity() {
                         buttonSendPhoto.isEnabled = true
                         buttonViewGallery.isEnabled = true
                         
-                        textViewStatus.text = "Foto capturada! Pronta para enviar.\nResolução: ${bitmap.width}x${bitmap.height}px\nTimeout: 5 segundos\nFormato: JPEG 80% qualidade, máx. 1280px\nAPIs modernas: ActivityResultLauncher + MediaStore"
+                        textViewStatus.text = "Foto capturada! Pronta para enviar.\nResolução: ${bitmap.width}x${bitmap.height}px\nTimeout: 5 segundos\nFormato: JPEG 80% qualidade, máx. 1280px\n"
                     } else {
                         Toast.makeText(this, "Erro ao processar foto", Toast.LENGTH_SHORT).show()
                         textViewStatus.text = "Erro ao processar foto. Tente novamente."
@@ -271,11 +281,16 @@ class MainActivity : AppCompatActivity() {
                 return null
             }
             
-            // Primeiro, obter dimensões da imagem
+            // NOVA ABORDAGEM: Carregar como byte array primeiro para evitar processamento automático
+            val fileBytes = file.readBytes()
+            
+            // Decodificar direto do byte array SEM aplicar orientação
             val options = BitmapFactory.Options().apply {
                 inJustDecodeBounds = true
+                inPreferredConfig = Bitmap.Config.ARGB_8888
+                inScaled = false // IMPORTANTE: desabilitar escalonamento automático
             }
-            BitmapFactory.decodeFile(imagePath, options)
+            BitmapFactory.decodeByteArray(fileBytes, 0, fileBytes.size, options)
             
             // Verificar se a imagem foi decodificada corretamente
             if (options.outWidth <= 0 || options.outHeight <= 0) {
@@ -295,15 +310,27 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             
-            // Decodificar com fator de escala
+            // Decodificar do byte array SEM orientação automática
             val decodeOptions = BitmapFactory.Options().apply {
                 inSampleSize = scaleFactor
+                inJustDecodeBounds = false
+                inPreferredConfig = Bitmap.Config.ARGB_8888
+                inMutable = false
+                inScaled = false // IMPORTANTE: não escalar automaticamente
             }
             
-            val bitmap = BitmapFactory.decodeFile(imagePath, decodeOptions)
+            var bitmap = BitmapFactory.decodeByteArray(fileBytes, 0, fileBytes.size, decodeOptions)
             
-            // Se ainda for maior que 1280px, redimensionar mais
-            if (bitmap != null && (bitmap.width > maxSize || bitmap.height > maxSize)) {
+            if (bitmap == null) {
+                Toast.makeText(this, "Erro ao decodificar imagem", Toast.LENGTH_SHORT).show()
+                return null
+            }
+            
+            // SOLUÇÃO PRÁTICA: Se sempre rotaciona para direita, rotacionar para esquerda (-90°)
+            bitmap = rotateImage(bitmap, 90f)
+            
+            // Se ainda for maior que 1280px, redimensionar manualmente
+            if (bitmap.width > maxSize || bitmap.height > maxSize) {
                 val aspectRatio = bitmap.width.toFloat() / bitmap.height.toFloat()
                 val (newWidth, newHeight) = if (bitmap.width > bitmap.height) {
                     maxSize to (maxSize / aspectRatio).toInt()
@@ -311,7 +338,9 @@ class MainActivity : AppCompatActivity() {
                     (maxSize * aspectRatio).toInt() to maxSize
                 }
                 
-                Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
+                val scaledBitmap = Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, false) // false = não filtrar
+                bitmap.recycle() // Liberar memória do bitmap original
+                scaledBitmap
             } else {
                 bitmap
             }
@@ -319,6 +348,12 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "Erro ao processar imagem: ${e.message}", Toast.LENGTH_LONG).show()
             null
         }
+    }
+    
+    private fun rotateImage(bitmap: Bitmap, degrees: Float): Bitmap {
+        val matrix = Matrix()
+        matrix.postRotate(degrees)
+        return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
     }
     
     private fun saveImageToGalleryModern(bitmap: Bitmap) {
@@ -360,7 +395,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
         
-        textViewStatus.text = "Enviando foto...\nTimeout: 5 segundos\nFormato: JPEG 80% qualidade, máx. 1280px\nAPIs modernas: ActivityResultLauncher + MediaStore"
+        textViewStatus.text = "Enviando foto...\nTimeout: 5 segundos\nFormato: JPEG 80% qualidade, máx. 1280px "
         buttonSendPhoto.isEnabled = false
         
         // Usando Kotlin Coroutines para operação de rede com timeout
@@ -390,26 +425,26 @@ class MainActivity : AppCompatActivity() {
                 socket.close()
                 
                 withContext(Dispatchers.Main) {
-                    textViewStatus.text = "Foto enviada com sucesso!\nTamanho: ${imageBytes.size / 1024}KB\nTimeout: 5s\nFormato: JPEG 80% qualidade, máx. 1280px\nAPIs modernas: ActivityResultLauncher + MediaStore"
+                    textViewStatus.text = "Foto enviada com sucesso!\nTamanho: ${imageBytes.size / 1024}KB\nTimeout: 5s\nFormato: JPEG 80% qualidade, máx. 1280px "
                     buttonSendPhoto.isEnabled = true
                     Toast.makeText(this@MainActivity, "Foto enviada!", Toast.LENGTH_SHORT).show()
                 }
                 
             } catch (e: java.net.SocketTimeoutException) {
                 withContext(Dispatchers.Main) {
-                    textViewStatus.text = "Timeout: Servidor não respondeu em 5 segundos\nVerifique se o servidor está rodando\nFormato: JPEG 80% qualidade, máx. 1280px\nAPIs modernas: ActivityResultLauncher + MediaStore"
+                    textViewStatus.text = "Timeout: Servidor não respondeu em 5 segundos\nVerifique se o servidor está rodando\nFormato: JPEG 80% qualidade, máx. 1280px "
                     buttonSendPhoto.isEnabled = true
                     Toast.makeText(this@MainActivity, "Timeout: Servidor não respondeu", Toast.LENGTH_LONG).show()
                 }
             } catch (e: java.net.ConnectException) {
                 withContext(Dispatchers.Main) {
-                    textViewStatus.text = "Erro de conexão: Servidor indisponível\nVerifique IP/Porta e se o servidor está rodando\nFormato: JPEG 80% qualidade, máx. 1280px\nAPIs modernas: ActivityResultLauncher + MediaStore"
+                    textViewStatus.text = "Erro de conexão: Servidor indisponível\nVerifique IP/Porta e se o servidor está rodando\nFormato: JPEG 80% qualidade, máx. 1280px "
                     buttonSendPhoto.isEnabled = true
                     Toast.makeText(this@MainActivity, "Erro: Servidor indisponível", Toast.LENGTH_LONG).show()
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    textViewStatus.text = "Erro ao enviar: ${e.message}\nTimeout: 5s\nFormato: JPEG 80% qualidade, máx. 1280px\nAPIs modernas: ActivityResultLauncher + MediaStore"
+                    textViewStatus.text = "Erro ao enviar: ${e.message}\nTimeout: 5s\nFormato: JPEG 80% qualidade, máx. 1280px "
                     buttonSendPhoto.isEnabled = true
                     Toast.makeText(this@MainActivity, "Erro: ${e.message}", Toast.LENGTH_LONG).show()
                 }
