@@ -1,5 +1,4 @@
 
-// build.gradle.kts raiz para projeto Android com Kotlin
 buildscript {
     repositories {
         google()
