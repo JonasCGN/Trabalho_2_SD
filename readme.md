@@ -84,14 +84,16 @@ Este projeto implementa um sistema simples de **captura e envio de fotos** de um
 #### **Opção 1: Instalar APK Pronto (Recomendado) 🚀**
 *Para quem não quer instalar Android Studio/Java*
 
-1. **Habilite instalação de fontes desconhecidas** no seu Android:
+1. **Baixe o APK:**
+   - 🌟 **Método 1**: [Download direto via Release](https://github.com/JonasCGN/Trabalho_2_SD/releases) (mais fácil)
+   - 📂 **Método 2**: Clone o repositório e use `apk/app-debug.apk`
+
+2. **Habilite instalação de fontes desconhecidas** no seu Android:
    - Configurações → Segurança → Fontes Desconhecidas ✅
    
-2. **Transfira o APK para o dispositivo:**
-   - Copie o arquivo `apk/app-debug.apk` para seu celular
-   - Ou use ADB: `adb install apk/app-debug.apk`
-   
-3. **Instale tocando no arquivo APK** no gerenciador de arquivos
+3. **Instale o APK:**
+   - **No celular**: Toque no arquivo APK baixado
+   - **Via ADB**: `adb install app-debug.apk`
 
 #### **Opção 2: Compilar no Android Studio**
 1. Abra o Android Studio
