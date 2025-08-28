@@ -50,25 +50,19 @@ class MainActivity : AppCompatActivity() {
     private var currentPhotoUri: Uri? = null
     private var currentPhotoPath: String = ""
     
-    // ActivityResultLauncher moderno para câmera
     private lateinit var takePictureLauncher: ActivityResultLauncher<Uri>
-    
-    // ActivityResultLauncher para permissões
     private lateinit var requestPermissionLauncher: ActivityResultLauncher<String>
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Inicializar ActivityResultLaunchers
         initializeActivityLaunchers()
         
-        // Criar layout programaticamente
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(50, 50, 50, 50)
         }
         
-        // Campo IP
         val labelIP = TextView(this).apply {
             text = "IP do Servidor:"
             textSize = 16f
@@ -76,10 +70,9 @@ class MainActivity : AppCompatActivity() {
         
         editTextIP = EditText(this).apply {
             hint = "Ex: 192.168.1.100"
-            setText("192.168.1.100") // IP padrão
+            setText("192.168.1.100")
         }
         
-        // Campo Porta
         val labelPort = TextView(this).apply {
             text = "Porta do Servidor:"
             textSize = 16f
@@ -87,10 +80,9 @@ class MainActivity : AppCompatActivity() {
         
         editTextPort = EditText(this).apply {
             hint = "Ex: 8080"
-            setText("8080") // Porta padrão
+            setText("8080")
         }
         
-        // Preview da imagem
         val labelPreview = TextView(this).apply {
             text = "Preview da Foto:"
             textSize = 16f
@@ -98,21 +90,19 @@ class MainActivity : AppCompatActivity() {
         
         imageViewPreview = ImageView(this).apply {
             layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, // Largura total disponível
-                LinearLayout.LayoutParams.WRAP_CONTENT  // Altura se adapta à imagem
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
             )
-            scaleType = ImageView.ScaleType.FIT_CENTER // Manter proporções, centralizar
+            scaleType = ImageView.ScaleType.FIT_CENTER
             setBackgroundColor(0xFFE0E0E0.toInt())
-            adjustViewBounds = true // IMPORTANTE: se adaptar aos limites da imagem
-            maxHeight = 400 // Altura máxima para não ocupar toda a tela
+            adjustViewBounds = true
+            maxHeight = 400
         }
         
-        // Botões em linha horizontal
         val buttonLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
         }
         
-        // Botão Tirar Foto
         buttonTakePhoto = Button(this).apply {
             text = "Tirar Foto"
             textSize = 16f
@@ -122,7 +112,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
         
-        // Botão Ver na Galeria
         buttonViewGallery = Button(this).apply {
             text = "Ver na Galeria"
             textSize = 16f
@@ -146,7 +135,6 @@ class MainActivity : AppCompatActivity() {
         buttonLayout.addView(buttonTakePhoto)
         buttonLayout.addView(buttonViewGallery)
         
-        // Botão Enviar Foto
         buttonSendPhoto = Button(this).apply {
             text = "Enviar Foto"
             textSize = 18f
@@ -160,13 +148,11 @@ class MainActivity : AppCompatActivity() {
             }
         }
         
-        // Status
         textViewStatus = TextView(this).apply {
             text = "Pronto para tirar foto"
             textSize = 14f
         }
         
-        // Adicionar views ao layout
         layout.addView(labelIP)
         layout.addView(editTextIP)
         layout.addView(labelPort)
@@ -180,8 +166,10 @@ class MainActivity : AppCompatActivity() {
         setContentView(layout)
     }
     
+    /**
+     * Inicializa os ActivityResultLaunchers modernos para câmera e permissões
+     */
     private fun initializeActivityLaunchers() {
-        // Launcher moderno para tirar foto
         takePictureLauncher = registerForActivityResult(ActivityResultContracts.TakePicture()) { success ->
             try {
                 if (success && currentPhotoPath.isNotEmpty()) {
@@ -189,15 +177,12 @@ class MainActivity : AppCompatActivity() {
                     if (bitmap != null) {
                         currentPhotoBitmap = bitmap
                         
-                        // Configurar ImageView para não rotacionar automaticamente
                         imageViewPreview.scaleType = ImageView.ScaleType.FIT_CENTER
                         imageViewPreview.adjustViewBounds = true
                         imageViewPreview.setImageBitmap(bitmap)
                         
-                        // Salvar versão otimizada na galeria usando API moderna
                         saveImageToGalleryModern(bitmap)
                         
-                        // Habilitar botões
                         buttonSendPhoto.isEnabled = true
                         buttonViewGallery.isEnabled = true
                         
@@ -216,7 +201,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
         
-        // Launcher moderno para permissões
         requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
             if (isGranted) {
                 takePhoto()
@@ -226,32 +210,39 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
+    /**
+     * Verifica permissão de câmera e inicia captura de foto
+     */
     private fun checkCameraPermissionAndTakePhoto() {
         when {
             ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED -> {
                 takePhoto()
             }
             else -> {
-                // Usar launcher moderno para pedir permissão
                 requestPermissionLauncher.launch(Manifest.permission.CAMERA)
             }
         }
     }
     
+    /**
+     * Cria arquivo temporário para armazenar a foto capturada
+     */
     @Throws(IOException::class)
     private fun createImageFile(): File {
-        // Criar nome único para o arquivo
         val timeStamp: String = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
         val storageDir: File? = getExternalFilesDir(Environment.DIRECTORY_PICTURES)
         return File.createTempFile(
-    "JPEG_${timeStamp}_",
-    ".jpg",
+            "JPEG_${timeStamp}_",
+            ".jpg",
             storageDir
         ).apply {
             currentPhotoPath = absolutePath
         }
     }
     
+    /**
+     * Inicia a captura de foto usando FileProvider
+     */
     private fun takePhoto() {
         try {
             val photoFile = createImageFile()
@@ -264,7 +255,6 @@ class MainActivity : AppCompatActivity() {
             
             textViewStatus.text = "Abrindo câmera..."
             
-            // Usar launcher moderno em vez de startActivityForResult
             takePictureLauncher.launch(photoURI)
         } catch (ex: Exception) {
             Toast.makeText(this, "Erro ao criar arquivo de imagem: ${ex.message}", Toast.LENGTH_LONG).show()
@@ -272,33 +262,32 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
+    /**
+     * Redimensiona e comprime bitmap para otimizar envio
+     * Máximo de 1280px e qualidade otimizada
+     */
     private fun resizeAndCompressBitmap(imagePath: String): Bitmap? {
         return try {
-            // Verificar se o arquivo existe
             val file = java.io.File(imagePath)
             if (!file.exists()) {
                 Toast.makeText(this, "Arquivo de imagem não encontrado", Toast.LENGTH_SHORT).show()
                 return null
             }
             
-            // NOVA ABORDAGEM: Carregar como byte array primeiro para evitar processamento automático
             val fileBytes = file.readBytes()
             
-            // Decodificar direto do byte array SEM aplicar orientação
             val options = BitmapFactory.Options().apply {
                 inJustDecodeBounds = true
                 inPreferredConfig = Bitmap.Config.ARGB_8888
-                inScaled = false // IMPORTANTE: desabilitar escalonamento automático
+                inScaled = false
             }
             BitmapFactory.decodeByteArray(fileBytes, 0, fileBytes.size, options)
             
-            // Verificar se a imagem foi decodificada corretamente
             if (options.outWidth <= 0 || options.outHeight <= 0) {
                 Toast.makeText(this, "Imagem corrompida ou inválida", Toast.LENGTH_SHORT).show()
                 return null
             }
             
-            // Calcular fator de escala para máximo de 1280px
             val maxSize = 1280
             var scaleFactor = 1
             if (options.outHeight > maxSize || options.outWidth > maxSize) {
@@ -310,13 +299,12 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             
-            // Decodificar do byte array SEM orientação automática
             val decodeOptions = BitmapFactory.Options().apply {
                 inSampleSize = scaleFactor
                 inJustDecodeBounds = false
                 inPreferredConfig = Bitmap.Config.ARGB_8888
                 inMutable = false
-                inScaled = false // IMPORTANTE: não escalar automaticamente
+                inScaled = false
             }
             
             var bitmap = BitmapFactory.decodeByteArray(fileBytes, 0, fileBytes.size, decodeOptions)
@@ -326,10 +314,6 @@ class MainActivity : AppCompatActivity() {
                 return null
             }
             
-            // SOLUÇÃO PRÁTICA: Se sempre rotaciona para direita, rotacionar para esquerda (-90°)
-            // bitmap = rotateImage(bitmap, 90f)
-            
-            // Se ainda for maior que 1280px, redimensionar manualmente
             if (bitmap.width > maxSize || bitmap.height > maxSize) {
                 val aspectRatio = bitmap.width.toFloat() / bitmap.height.toFloat()
                 val (newWidth, newHeight) = if (bitmap.width > bitmap.height) {
@@ -338,8 +322,8 @@ class MainActivity : AppCompatActivity() {
                     (maxSize * aspectRatio).toInt() to maxSize
                 }
                 
-                val scaledBitmap = Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, false) // false = não filtrar
-                bitmap.recycle() // Liberar memória do bitmap original
+                val scaledBitmap = Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, false)
+                bitmap.recycle()
                 scaledBitmap
             } else {
                 bitmap
@@ -350,12 +334,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
+    /**
+     * Rotaciona bitmap em graus especificados
+     */
     private fun rotateImage(bitmap: Bitmap, degrees: Float): Bitmap {
         val matrix = Matrix()
         matrix.postRotate(degrees)
         return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
     }
     
+    /**
+     * Salva imagem na galeria usando MediaStore API moderna
+     */
     private fun saveImageToGalleryModern(bitmap: Bitmap) {
         try {
             val contentValues = ContentValues().apply {
@@ -377,9 +367,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
-    // Remover métodos deprecated
-    // onRequestPermissionsResult e onActivityResult não são mais necessários
-    
+    /**
+     * Envia imagem para servidor via socket TCP
+     * Protocolo: 4 bytes (tamanho) + dados JPEG
+     */
     private fun sendImageToServer(bitmap: Bitmap) {
         val ip = editTextIP.text.toString().trim()
         val portText = editTextPort.text.toString().trim()
@@ -398,27 +389,22 @@ class MainActivity : AppCompatActivity() {
         textViewStatus.text = "Enviando foto...\n"
         buttonSendPhoto.isEnabled = false
         
-        // Usando Kotlin Coroutines para operação de rede com timeout
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val socket = Socket()
                 
-                // Configurar timeout de 5 segundos para conexão
                 socket.connect(java.net.InetSocketAddress(ip, port), 5000)
-                socket.soTimeout = 5000 // Timeout para operações de leitura/escrita
+                socket.soTimeout = 5000
                 
                 val outputStream = socket.getOutputStream()
                 
-                // Converter bitmap para JPEG com qualidade 80%
                 val byteArrayOutputStream = ByteArrayOutputStream()
                 bitmap.compress(Bitmap.CompressFormat.JPEG, 80, byteArrayOutputStream)
                 val imageBytes = byteArrayOutputStream.toByteArray()
                 
-                // Enviar tamanho da imagem primeiro
                 val dataOutputStream = DataOutputStream(outputStream)
                 dataOutputStream.writeInt(imageBytes.size)
                 
-                // Enviar imagem
                 outputStream.write(imageBytes)
                 outputStream.flush()
                 
