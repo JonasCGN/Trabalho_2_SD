@@ -18,33 +18,46 @@ def get_local_ip():
 
 def handle_client(conn, addr):
     global latest_image
-    
     with conn:
-        while True:
-            img_size_bytes = conn.recv(4)
-            if not img_size_bytes:
-                break
-
-            img_size = int.from_bytes(img_size_bytes, byteorder="big")
-            data = b""
-            while len(data) < img_size:
-                packet = conn.recv(min(img_size - len(data), 4096))
-                data += packet
-
-            np_data = np.frombuffer(data, np.uint8)
-            img = cv2.imdecode(np_data, cv2.IMREAD_COLOR)
-
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"img_{timestamp}_{addr[0].replace('.', '_')}.jpg"
-            filepath = os.path.join(SAVE_DIR, filename)
-            cv2.imwrite(filepath, img)
+        img_size_bytes = conn.recv(4)
+        img_size = int.from_bytes(img_size_bytes, byteorder="big")
+        
+        data = b""
+        bytes_received = 0
+        while bytes_received < img_size:
+            remaining = img_size - bytes_received
+            chunk_size = min(4096, remaining)
+            packet = conn.recv(chunk_size)
             
-            print(f"Imagem salva em {filepath}")
-            with lock:
-                latest_image = img.copy()
+            if not packet:
+                print(f"Conexão perdida. Recebidos {bytes_received}/{img_size} bytes")
+                return None
+            
+            data += packet
+            bytes_received += len(packet)
+
+            if bytes_received % 10240 == 0:  # Log a cada 10KB
+                print(f"Progresso: {bytes_received}/{img_size} bytes ({bytes_received/img_size*100:.1f}%)")
+
+        print(f"Dados completos recebidos: {len(data)} bytes")
+        
+        
+        np_data = np.frombuffer(data, np.uint8)
+        img = cv2.imdecode(np_data, cv2.IMREAD_COLOR)
+
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"img_{timestamp}_{addr[0].replace('.', '_')}.jpg"
+        filepath = os.path.join(SAVE_DIR, filename)
+
+        cv2.imwrite(filepath, img)
+        print(f"Imagem salva em {filepath}")
+        with lock:
+            latest_image = img.copy()
+       
 
 def server_thread(host="0.0.0.0", port=8080):
     local_ip = get_local_ip()
+    
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind((host, port))
@@ -58,12 +71,14 @@ def server_thread(host="0.0.0.0", port=8080):
 
 def display_thread(window_name="Servidor de Imagens", display_size=(640, 480)):
     global latest_image
+    imagem_anterior = None
+
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
     cv2.resizeWindow(window_name, display_size[0], display_size[1])
 
     while True:
         with lock:
-            if latest_image is not None:
+            if latest_image is not None and not np.array_equal(latest_image, imagem_anterior):
                 
                 h, w = latest_image.shape[:2]
                 scale = min(display_size[0] / w, display_size[1] / h)
@@ -76,6 +91,8 @@ def display_thread(window_name="Servidor de Imagens", display_size=(640, 480)):
                 canvas[y_offset:y_offset+new_h, x_offset:x_offset+new_w] = resized
 
                 cv2.imshow(window_name, canvas)
+                imagem_anterior = latest_image.copy()
+                print("Imagem atualizada na tela.")
 
         if cv2.waitKey(1) & 0xFF == ord("q"):
             break
