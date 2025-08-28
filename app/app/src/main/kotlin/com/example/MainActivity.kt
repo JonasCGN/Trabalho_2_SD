@@ -201,7 +201,7 @@ class MainActivity : AppCompatActivity() {
                         buttonSendPhoto.isEnabled = true
                         buttonViewGallery.isEnabled = true
                         
-                        textViewStatus.text = "Foto capturada! Pronta para enviar.\nResolução: ${bitmap.width}x${bitmap.height}px\nTimeout: 5 segundos\nFormato: JPEG 80% qualidade, máx. 1280px\n"
+                        textViewStatus.text = "Foto capturada! Pronta para enviar.\nResolução: ${bitmap.width}x${bitmap.height}px"
                     } else {
                         Toast.makeText(this, "Erro ao processar foto", Toast.LENGTH_SHORT).show()
                         textViewStatus.text = "Erro ao processar foto. Tente novamente."
@@ -244,8 +244,8 @@ class MainActivity : AppCompatActivity() {
         val timeStamp: String = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
         val storageDir: File? = getExternalFilesDir(Environment.DIRECTORY_PICTURES)
         return File.createTempFile(
-            "JPEG_${timeStamp}_",
-            ".jpg",
+    "JPEG_${timeStamp}_",
+    ".jpg",
             storageDir
         ).apply {
             currentPhotoPath = absolutePath
@@ -257,7 +257,7 @@ class MainActivity : AppCompatActivity() {
             val photoFile = createImageFile()
             val photoURI: Uri = FileProvider.getUriForFile(
                 this,
-                "com.example.fileprovider",
+        "com.example.fileprovider",
                 photoFile
             )
             currentPhotoUri = photoURI
@@ -327,7 +327,7 @@ class MainActivity : AppCompatActivity() {
             }
             
             // SOLUÇÃO PRÁTICA: Se sempre rotaciona para direita, rotacionar para esquerda (-90°)
-            bitmap = rotateImage(bitmap, 90f)
+            // bitmap = rotateImage(bitmap, 90f)
             
             // Se ainda for maior que 1280px, redimensionar manualmente
             if (bitmap.width > maxSize || bitmap.height > maxSize) {
@@ -395,7 +395,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
         
-        textViewStatus.text = "Enviando foto...\nTimeout: 5 segundos\nFormato: JPEG 80% qualidade, máx. 1280px "
+        textViewStatus.text = "Enviando foto...\n"
         buttonSendPhoto.isEnabled = false
         
         // Usando Kotlin Coroutines para operação de rede com timeout
@@ -425,26 +425,26 @@ class MainActivity : AppCompatActivity() {
                 socket.close()
                 
                 withContext(Dispatchers.Main) {
-                    textViewStatus.text = "Foto enviada com sucesso!\nTamanho: ${imageBytes.size / 1024}KB\nTimeout: 5s\nFormato: JPEG 80% qualidade, máx. 1280px "
+                    textViewStatus.text = "Foto enviada com sucesso!\nTamanho: ${imageBytes.size / 1024}KB\nTimeout: 5s\n"
                     buttonSendPhoto.isEnabled = true
                     Toast.makeText(this@MainActivity, "Foto enviada!", Toast.LENGTH_SHORT).show()
                 }
                 
             } catch (e: java.net.SocketTimeoutException) {
                 withContext(Dispatchers.Main) {
-                    textViewStatus.text = "Timeout: Servidor não respondeu em 5 segundos\nVerifique se o servidor está rodando\nFormato: JPEG 80% qualidade, máx. 1280px "
+                    textViewStatus.text = "Timeout: Servidor não respondeu em 5 segundos\nVerifique se o servidor está rodando\n"
                     buttonSendPhoto.isEnabled = true
                     Toast.makeText(this@MainActivity, "Timeout: Servidor não respondeu", Toast.LENGTH_LONG).show()
                 }
             } catch (e: java.net.ConnectException) {
                 withContext(Dispatchers.Main) {
-                    textViewStatus.text = "Erro de conexão: Servidor indisponível\nVerifique IP/Porta e se o servidor está rodando\nFormato: JPEG 80% qualidade, máx. 1280px "
+                    textViewStatus.text = "Erro de conexão: Servidor indisponível\nVerifique IP/Porta e se o servidor está rodando\n"
                     buttonSendPhoto.isEnabled = true
                     Toast.makeText(this@MainActivity, "Erro: Servidor indisponível", Toast.LENGTH_LONG).show()
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    textViewStatus.text = "Erro ao enviar: ${e.message}\nTimeout: 5s\nFormato: JPEG 80% qualidade, máx. 1280px "
+                    textViewStatus.text = "Erro ao enviar: ${e.message}\nTimeout: 5s\n"
                     buttonSendPhoto.isEnabled = true
                     Toast.makeText(this@MainActivity, "Erro: ${e.message}", Toast.LENGTH_LONG).show()
                 }
