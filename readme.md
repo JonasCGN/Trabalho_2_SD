@@ -75,10 +75,6 @@ Este projeto implementa um sistema simples de **captura e envio de fotos** de um
    pip install opencv-python
    ```
 
-   O servidor automaticamente detecta se a GUI está disponível:
-   - ✅ **Com GUI**: Exibe janela com as imagens recebidas
-   - 📝 **Sem GUI**: Roda em modo texto mostrando status
-
 ### 2. 📱 Aplicativo Android
 
 #### **Opção 1: Instalar APK Pronto (Recomendado) 🚀**
