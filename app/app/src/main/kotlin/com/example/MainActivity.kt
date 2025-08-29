@@ -173,7 +173,7 @@ class MainActivity : AppCompatActivity() {
         takePictureLauncher = registerForActivityResult(ActivityResultContracts.TakePicture()) { success ->
             try {
                 if (success && currentPhotoPath.isNotEmpty()) {
-                    val bitmap = resizeAndCompressBitmap(currentPhotoPath)
+                    val bitmap = processAndSaveImage(currentPhotoPath)
                     if (bitmap != null) {
                         currentPhotoBitmap = bitmap
                         
@@ -248,7 +248,7 @@ class MainActivity : AppCompatActivity() {
             val photoFile = createImageFile()
             val photoURI: Uri = FileProvider.getUriForFile(
                 this,
-        "com.example.fileprovider",
+                "com.example.fileprovider",
                 photoFile
             )
             currentPhotoUri = photoURI
@@ -263,10 +263,10 @@ class MainActivity : AppCompatActivity() {
     }
     
     /**
-     * Redimensiona e comprime bitmap para otimizar envio
-     * Máximo de 1280px e qualidade otimizada
+     * Processa imagem: corrige rotação, redimensiona e salva versão final
+     * Solução para problemas de orientação em diferentes dispositivos
      */
-    private fun resizeAndCompressBitmap(imagePath: String): Bitmap? {
+    private fun processAndSaveImage(imagePath: String): Bitmap? {
         return try {
             val file = java.io.File(imagePath)
             if (!file.exists()) {
@@ -274,64 +274,104 @@ class MainActivity : AppCompatActivity() {
                 return null
             }
             
-            val fileBytes = file.readBytes()
-            
-            val options = BitmapFactory.Options().apply {
-                inJustDecodeBounds = true
-                inPreferredConfig = Bitmap.Config.ARGB_8888
-                inScaled = false
-            }
-            BitmapFactory.decodeByteArray(fileBytes, 0, fileBytes.size, options)
-            
-            if (options.outWidth <= 0 || options.outHeight <= 0) {
-                Toast.makeText(this, "Imagem corrompida ou inválida", Toast.LENGTH_SHORT).show()
+            // 1. Carregar bitmap original
+            val originalBitmap = BitmapFactory.decodeFile(imagePath)
+            if (originalBitmap == null) {
+                Toast.makeText(this, "Erro ao carregar imagem", Toast.LENGTH_SHORT).show()
                 return null
             }
             
-            val maxSize = 1280
-            var scaleFactor = 1
-            if (options.outHeight > maxSize || options.outWidth > maxSize) {
-                val halfHeight = options.outHeight / 2
-                val halfWidth = options.outWidth / 2
-                
-                while (halfHeight / scaleFactor >= maxSize && halfWidth / scaleFactor >= maxSize) {
-                    scaleFactor *= 2
-                }
-            }
+            // 2. Corrigir orientação usando EXIF
+            val correctedBitmap = correctImageOrientation(originalBitmap, imagePath)
             
-            val decodeOptions = BitmapFactory.Options().apply {
-                inSampleSize = scaleFactor
-                inJustDecodeBounds = false
-                inPreferredConfig = Bitmap.Config.ARGB_8888
-                inMutable = false
-                inScaled = false
-            }
+            // 3. Redimensionar se necessário
+            val finalBitmap = resizeBitmapIfNeeded(correctedBitmap, 1280)
             
-            var bitmap = BitmapFactory.decodeByteArray(fileBytes, 0, fileBytes.size, decodeOptions)
+            // 4. Salvar versão processada e recarregar (garante consistência)
+            val processedFile = saveProcessedImageToFile(finalBitmap)
             
-            if (bitmap == null) {
-                Toast.makeText(this, "Erro ao decodificar imagem", Toast.LENGTH_SHORT).show()
-                return null
-            }
+            // 5. Recarregar da versão salva para garantir consistência
+            val savedBitmap = BitmapFactory.decodeFile(processedFile.absolutePath)
             
-            if (bitmap.width > maxSize || bitmap.height > maxSize) {
-                val aspectRatio = bitmap.width.toFloat() / bitmap.height.toFloat()
-                val (newWidth, newHeight) = if (bitmap.width > bitmap.height) {
-                    maxSize to (maxSize / aspectRatio).toInt()
-                } else {
-                    (maxSize * aspectRatio).toInt() to maxSize
-                }
-                
-                val scaledBitmap = Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, false)
-                bitmap.recycle()
-                scaledBitmap
-            } else {
-                bitmap
-            }
+            // Liberar bitmaps intermediários da memória
+            if (originalBitmap != correctedBitmap) originalBitmap.recycle()
+            if (correctedBitmap != finalBitmap) correctedBitmap.recycle()
+            finalBitmap.recycle()
+            
+            savedBitmap
+            
         } catch (e: Exception) {
             Toast.makeText(this, "Erro ao processar imagem: ${e.message}", Toast.LENGTH_LONG).show()
             null
         }
+    }
+    
+    /**
+     * Corrige orientação da imagem usando dados EXIF
+     */
+    private fun correctImageOrientation(bitmap: Bitmap, imagePath: String): Bitmap {
+        return try {
+            val exif = ExifInterface(imagePath)
+            val orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+            
+            when (orientation) {
+                ExifInterface.ORIENTATION_ROTATE_90 -> rotateImage(bitmap, 90f)
+                ExifInterface.ORIENTATION_ROTATE_180 -> rotateImage(bitmap, 180f)
+                ExifInterface.ORIENTATION_ROTATE_270 -> rotateImage(bitmap, 270f)
+                ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> flipImage(bitmap, horizontal = true)
+                ExifInterface.ORIENTATION_FLIP_VERTICAL -> flipImage(bitmap, horizontal = false)
+                else -> bitmap
+            }
+        } catch (e: Exception) {
+            // Se falhar ao ler EXIF, retorna bitmap original
+            bitmap
+        }
+    }
+    
+    /**
+     * Redimensiona bitmap se exceder o tamanho máximo
+     */
+    private fun resizeBitmapIfNeeded(bitmap: Bitmap, maxSize: Int): Bitmap {
+        if (bitmap.width <= maxSize && bitmap.height <= maxSize) {
+            return bitmap
+        }
+        
+        val aspectRatio = bitmap.width.toFloat() / bitmap.height.toFloat()
+        val (newWidth, newHeight) = if (bitmap.width > bitmap.height) {
+            maxSize to (maxSize / aspectRatio).toInt()
+        } else {
+            (maxSize * aspectRatio).toInt() to maxSize
+        }
+        
+        return Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
+    }
+    
+    /**
+     * Espelha bitmap horizontal ou verticalmente
+     */
+    private fun flipImage(bitmap: Bitmap, horizontal: Boolean): Bitmap {
+        val matrix = Matrix()
+        if (horizontal) {
+            matrix.preScale(-1f, 1f)
+        } else {
+            matrix.preScale(1f, -1f)
+        }
+        return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+    }
+    
+    /**
+     * Salva bitmap processado em arquivo temporário
+     */
+    private fun saveProcessedImageToFile(bitmap: Bitmap): File {
+        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+        val storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES)
+        val processedFile = File(storageDir, "processed_${timeStamp}.jpg")
+        
+        FileOutputStream(processedFile).use { out ->
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 80, out)
+        }
+        
+        return processedFile
     }
     
     /**
